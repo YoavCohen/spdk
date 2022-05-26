@@ -1,7 +1,5 @@
 # Changelog
 
-## v22.05: SMA, accel_fw compress, virtio-blk transport abstraction
-
 ### accel_fw
 
 A new parameter `flags` was added to accel API.
