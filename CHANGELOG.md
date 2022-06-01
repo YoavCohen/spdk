@@ -1,7 +1,5 @@
 # Changelog
 
-### accel_fw
-
 A new parameter `flags` was added to accel API.
 The APIs include:
 `spdk_accel_submit_copy`
