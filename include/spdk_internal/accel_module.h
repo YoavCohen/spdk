@@ -52,7 +52,7 @@ struct spdk_accel_task {
 		struct {
 			struct iovec		*iovs; /* iovs passed by the caller */
 			uint32_t		iovcnt; /* iovcnt passed by the caller */
-		} v;
+		} s;
 		void				*src;
 	};
 	union {
