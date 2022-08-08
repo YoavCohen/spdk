@@ -45,7 +45,7 @@
 #include "spdk/crc32.h"
 #include "spdk/util.h"
 
-/* Accelerator Engine Framework: The following provides a top level
+/* Accelerator Framework: The following provides a top level
  * generic API for the accelerator functions defined here. Modules,
  * such as the one in /module/accel/ioat, supply the implementation
  * with the exception of the pure software implementation contained
@@ -510,7 +510,7 @@ void spdk_accel_module_list_add(struct spdk_accel_module_if *accel_module)
 
 /* Framework level channel create callback. */
 static int
-accel_engine_create_cb(void *io_device, void *ctx_buf)
+accel_create_channel(void *io_device, void *ctx_buf)
 {
 	struct accel_io_channel	*accel_ch = ctx_buf;
 	struct spdk_accel_task *accel_task;
@@ -550,7 +550,7 @@ err:
 
 /* Framework level channel destroy callback. */
 static void
-accel_engine_destroy_cb(void *io_device, void *ctx_buf)
+accel_destroy_channel(void *io_device, void *ctx_buf)
 {
 	struct accel_io_channel	*accel_ch = ctx_buf;
 	int i;
@@ -565,13 +565,13 @@ accel_engine_destroy_cb(void *io_device, void *ctx_buf)
 }
 
 struct spdk_io_channel *
-spdk_accel_engine_get_io_channel(void)
+spdk_accel_get_io_channel(void)
 {
 	return spdk_get_io_channel(&spdk_accel_module_list);
 }
 
 static void
-accel_engine_module_initialize(void)
+accel_module_initialize(void)
 {
 	struct spdk_accel_module_if *accel_engine_module;
 
@@ -581,13 +581,13 @@ accel_engine_module_initialize(void)
 }
 
 int
-spdk_accel_engine_initialize(void)
+spdk_accel_initialize(void)
 {
 	enum accel_opcode op;
 	struct spdk_accel_module_if *accel_module = NULL;
 
 	g_engine_started = true;
-	accel_engine_module_initialize();
+	accel_module_initialize();
 
 	/* Create our priority global map of opcodes to engines, we populate starting
 	 * with the software engine (guaranteed to be first on the list) and then
@@ -626,17 +626,17 @@ spdk_accel_engine_initialize(void)
 	}
 #endif
 	/*
-	 * We need a unique identifier for the accel engine framework, so use the
+	 * We need a unique identifier for the accel framework, so use the
 	 * spdk_accel_module_list address for this purpose.
 	 */
-	spdk_io_device_register(&spdk_accel_module_list, accel_engine_create_cb, accel_engine_destroy_cb,
-				sizeof(struct accel_io_channel), "accel_module");
+	spdk_io_device_register(&spdk_accel_module_list, accel_create_channel, accel_destroy_channel,
+				sizeof(struct accel_io_channel), "accel");
 
 	return 0;
 }
 
 static void
-accel_engine_module_finish_cb(void)
+accel_module_finish_cb(void)
 {
 	spdk_accel_fini_cb cb_fn = g_fini_cb_fn;
 
@@ -673,7 +673,7 @@ spdk_accel_module_finish(void)
 	}
 
 	if (!g_accel_engine_module) {
-		accel_engine_module_finish_cb();
+		accel_module_finish_cb();
 		return;
 	}
 
@@ -685,7 +685,7 @@ spdk_accel_module_finish(void)
 }
 
 void
-spdk_accel_engine_finish(spdk_accel_fini_cb cb_fn, void *cb_arg)
+spdk_accel_finish(spdk_accel_fini_cb cb_fn, void *cb_arg)
 {
 	enum accel_opcode op;
 

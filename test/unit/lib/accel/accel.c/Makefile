@@ -33,6 +33,6 @@
 
 SPDK_ROOT_DIR := $(abspath $(CURDIR)/../../../../..)
 
-TEST_FILE = accel_engine_ut.c
+TEST_FILE = accel_ut.c
 
 include $(SPDK_ROOT_DIR)/mk/spdk.unittest.mk
