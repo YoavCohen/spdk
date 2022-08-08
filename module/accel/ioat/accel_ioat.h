@@ -31,13 +31,13 @@
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SPDK_ACCEL_ENGINE_IOAT_H
-#define SPDK_ACCEL_ENGINE_IOAT_H
+#ifndef SPDK_ACCEL_MODULE_IOAT_H
+#define SPDK_ACCEL_MODULE_IOAT_H
 
 #include "spdk/stdinc.h"
 
 #define IOAT_MAX_CHANNELS	64
 
-void accel_engine_ioat_enable_probe(void);
+void accel_ioat_enable_probe(void);
 
-#endif /* SPDK_ACCEL_ENGINE_IOAT_H */
+#endif /* SPDK_ACCEL_MODULE_IOAT_H */

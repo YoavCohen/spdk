@@ -31,11 +31,11 @@
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "accel_engine_dsa.h"
+#include "accel_dsa.h"
 
 #include "spdk/stdinc.h"
 
-#include "spdk_internal/accel_engine.h"
+#include "spdk_internal/accel_module.h"
 #include "spdk/log.h"
 #include "spdk_internal/idxd.h"
 
@@ -312,7 +312,7 @@ idxd_poll(void *arg)
 }
 
 static size_t
-accel_engine_dsa_get_ctx_size(void)
+accel_dsa_get_ctx_size(void)
 {
 	return sizeof(struct spdk_accel_task);
 }
@@ -337,15 +337,15 @@ dsa_supports_opcode(enum accel_opcode opc)
 	}
 }
 
-static int accel_engine_dsa_init(void);
-static void accel_engine_dsa_exit(void *ctx);
-static void accel_engine_dsa_write_config_json(struct spdk_json_write_ctx *w);
+static int accel_dsa_init(void);
+static void accel_dsa_exit(void *ctx);
+static void accel_dsa_write_config_json(struct spdk_json_write_ctx *w);
 
 static struct spdk_accel_module_if g_dsa_module = {
-	.module_init = accel_engine_dsa_init,
-	.module_fini = accel_engine_dsa_exit,
-	.write_config_json = accel_engine_dsa_write_config_json,
-	.get_ctx_size = accel_engine_dsa_get_ctx_size,
+	.module_init = accel_dsa_init,
+	.module_fini = accel_dsa_exit,
+	.write_config_json = accel_dsa_write_config_json,
+	.get_ctx_size = accel_dsa_get_ctx_size,
 	.name			= "dsa",
 	.supports_opcode	= dsa_supports_opcode,
 	.get_io_channel		= dsa_get_io_channel,
@@ -411,7 +411,7 @@ attach_cb(void *cb_ctx, struct spdk_idxd_device *idxd)
 }
 
 void
-accel_engine_dsa_enable_probe(bool kernel_mode)
+accel_dsa_enable_probe(bool kernel_mode)
 {
 	g_kernel_mode = kernel_mode;
 	g_dsa_enable = true;
@@ -429,7 +429,7 @@ probe_cb(void *cb_ctx, struct spdk_pci_device *dev)
 }
 
 static int
-accel_engine_dsa_init(void)
+accel_dsa_init(void)
 {
 	if (!g_dsa_enable) {
 		return -EINVAL;
@@ -446,14 +446,14 @@ accel_engine_dsa_init(void)
 	}
 
 	g_dsa_initialized = true;
-	SPDK_NOTICELOG("Accel framework DSA engine initialized.\n");
+	SPDK_NOTICELOG("Accel framework DSA module initialized.\n");
 	spdk_io_device_register(&g_dsa_module, dsa_create_cb, dsa_destroy_cb,
-				sizeof(struct idxd_io_channel), "dsa_accel_engine");
+				sizeof(struct idxd_io_channel), "dsa_accel_module");
 	return 0;
 }
 
 static void
-accel_engine_dsa_exit(void *ctx)
+accel_dsa_exit(void *ctx)
 {
 	struct idxd_device *dev;
 
@@ -473,11 +473,11 @@ accel_engine_dsa_exit(void *ctx)
 }
 
 static void
-accel_engine_dsa_write_config_json(struct spdk_json_write_ctx *w)
+accel_dsa_write_config_json(struct spdk_json_write_ctx *w)
 {
 	if (g_dsa_enable) {
 		spdk_json_write_object_begin(w);
-		spdk_json_write_named_string(w, "method", "dsa_scan_accel_engine");
+		spdk_json_write_named_string(w, "method", "dsa_scan_accel_module");
 		spdk_json_write_named_object_begin(w, "params");
 		spdk_json_write_named_bool(w, "config_kernel_mode", g_kernel_mode);
 		spdk_json_write_object_end(w);

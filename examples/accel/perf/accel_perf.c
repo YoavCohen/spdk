@@ -111,7 +111,15 @@ struct worker_thread {
 static void
 dump_user_config(struct spdk_app_opts *opts)
 {
-	printf("SPDK Configuration:\n");
+	const char *module_name = NULL;
+	int rc;
+
+	rc = spdk_accel_get_opc_module_name(g_workload_selection, &module_name);
+	if (rc) {
+		printf("error getting module name (%d)\n", rc);
+	}
+
+	printf("\nSPDK Configuration:\n");
 	printf("Core mask:      %s\n\n", opts->reactor_mask);
 	printf("Accel Perf Configuration:\n");
 	printf("Workload Type:  %s\n", g_workload_type);
@@ -129,6 +137,7 @@ dump_user_config(struct spdk_app_opts *opts)
 	} else {
 		printf("Transfer size:  %u bytes\n", g_xfer_size_bytes);
 	}
+	printf("Module:         %s\n", module_name);
 	printf("Queue depth:    %u\n", g_queue_depth);
 	printf("Allocate depth: %u\n", g_allocate_depth);
 	printf("# threads/core: %u\n", g_threads_per_core);
@@ -266,7 +275,7 @@ _get_task_data_bufs(struct ap_task *task)
 	int dst_buff_len = g_xfer_size_bytes;
 
 	/* For dualcast, the DSA HW requires 4K alignment on destination addresses but
-	 * we do this for all engines to keep it simple.
+	 * we do this for all modules to keep it simple.
 	 */
 	if (g_workload_selection == ACCEL_OPC_DUALCAST) {
 		align = ALIGN_4K;
@@ -570,7 +579,7 @@ accel_done(void *arg1, int status)
 		worker->injected_miscompares++;
 		status = 0;
 	} else if (status) {
-		/* Expected to pass but the accel engine reported an error (ex: COMPARE operation). */
+		/* Expected to pass but the accel module reported an error (ex: COMPARE operation). */
 		worker->xfer_failed++;
 	}
 

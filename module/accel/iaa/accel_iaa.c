@@ -31,11 +31,11 @@
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "accel_engine_iaa.h"
+#include "accel_iaa.h"
 
 #include "spdk/stdinc.h"
 
-#include "spdk_internal/accel_engine.h"
+#include "spdk_internal/accel_module.h"
 #include "spdk/log.h"
 #include "spdk_internal/idxd.h"
 
@@ -256,7 +256,7 @@ idxd_poll(void *arg)
 }
 
 static size_t
-accel_engine_iaa_get_ctx_size(void)
+accel_iaa_get_ctx_size(void)
 {
 	return sizeof(struct spdk_accel_task);
 }
@@ -277,15 +277,15 @@ iaa_supports_opcode(enum accel_opcode opc)
 	}
 }
 
-static int accel_engine_iaa_init(void);
-static void accel_engine_iaa_exit(void *ctx);
-static void accel_engine_iaa_write_config_json(struct spdk_json_write_ctx *w);
+static int accel_iaa_init(void);
+static void accel_iaa_exit(void *ctx);
+static void accel_iaa_write_config_json(struct spdk_json_write_ctx *w);
 
 static struct spdk_accel_module_if g_iaa_module = {
-	.module_init = accel_engine_iaa_init,
-	.module_fini = accel_engine_iaa_exit,
-	.write_config_json = accel_engine_iaa_write_config_json,
-	.get_ctx_size = accel_engine_iaa_get_ctx_size,
+	.module_init = accel_iaa_init,
+	.module_fini = accel_iaa_exit,
+	.write_config_json = accel_iaa_write_config_json,
+	.get_ctx_size = accel_iaa_get_ctx_size,
 	.name			= "iaa",
 	.supports_opcode	= iaa_supports_opcode,
 	.get_io_channel		= iaa_get_io_channel,
@@ -351,7 +351,7 @@ attach_cb(void *cb_ctx, struct spdk_idxd_device *iaa)
 }
 
 void
-accel_engine_iaa_enable_probe(void)
+accel_iaa_enable_probe(void)
 {
 	g_iaa_enable = true;
 	/* TODO initially only support user mode w/IAA */
@@ -369,7 +369,7 @@ caller_probe_cb(void *cb_ctx, struct spdk_pci_device *dev)
 }
 
 static int
-accel_engine_iaa_init(void)
+accel_iaa_init(void)
 {
 	if (!g_iaa_enable) {
 		return -EINVAL;
@@ -386,14 +386,14 @@ accel_engine_iaa_init(void)
 	}
 
 	g_iaa_initialized = true;
-	SPDK_NOTICELOG("Accel framework IAA engine initialized.\n");
+	SPDK_NOTICELOG("Accel framework IAA module initialized.\n");
 	spdk_io_device_register(&g_iaa_module, idxd_create_cb, idxd_destroy_cb,
-				sizeof(struct idxd_io_channel), "iaa_accel_engine");
+				sizeof(struct idxd_io_channel), "iaa_accel_module");
 	return 0;
 }
 
 static void
-accel_engine_iaa_exit(void *ctx)
+accel_iaa_exit(void *ctx)
 {
 	struct idxd_device *dev;
 
@@ -413,11 +413,11 @@ accel_engine_iaa_exit(void *ctx)
 }
 
 static void
-accel_engine_iaa_write_config_json(struct spdk_json_write_ctx *w)
+accel_iaa_write_config_json(struct spdk_json_write_ctx *w)
 {
 	if (g_iaa_enable) {
 		spdk_json_write_object_begin(w);
-		spdk_json_write_named_string(w, "method", "iaa_scan_accel_engine");
+		spdk_json_write_named_string(w, "method", "iaa_scan_accel_module");
 		spdk_json_write_object_end(w);
 		spdk_json_write_object_end(w);
 	}

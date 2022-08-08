@@ -1,7 +1,8 @@
-from .helpers import deprecated_alias
+from spdk.rpc.helpers import deprecated_alias
 
 
-def ioat_scan_accel_engine(client):
-    """Enable IOAT accel engine.
+@deprecated_alias('iaa_scan_accel_engine')
+def iaa_scan_accel_module(client):
+    """Scan and enable IAA accel module.
     """
-    return client.call('ioat_scan_accel_engine')
+    return client.call('iaa_scan_accel_module')
