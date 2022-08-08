@@ -32,7 +32,7 @@
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "spdk/accel_engine.h"
+#include "spdk/accel.h"
 #include "spdk/stdinc.h"
 #include "spdk/crc32.h"
 #include "spdk/endian.h"

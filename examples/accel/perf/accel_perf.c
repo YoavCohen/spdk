@@ -37,7 +37,7 @@
 #include "spdk/event.h"
 #include "spdk/log.h"
 #include "spdk/string.h"
-#include "spdk/accel_engine.h"
+#include "spdk/accel.h"
 #include "spdk/crc32.h"
 #include "spdk/util.h"
 

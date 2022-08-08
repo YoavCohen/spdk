@@ -38,7 +38,7 @@
 #include "spdk/bdev.h"
 #include "spdk/endian.h"
 #include "spdk/env.h"
-#include "spdk/accel_engine.h"
+#include "spdk/accel.h"
 #include "spdk/json.h"
 #include "spdk/thread.h"
 #include "spdk/queue.h"

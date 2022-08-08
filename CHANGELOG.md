@@ -16,7 +16,71 @@ The API `spdk_accel_get_capabilities` has been removed.
 
 ### bdev
 
-Removed deprecated `spdk_bdev_module_finish_done`. Use `spdk_bdev_module_fini_done` instead.
+New RPCs `bdev_xnvme_create` and `bdev_xnvme_delete` were added to support the xNVMe bdev.
+
+### sock
+
+Added new `ssl` based socket implementation, the code is located in module/sock/posix.
+For now we are using hard-coded PSK and only support TLS 1.3
+
+### blobstore
+
+Reserve space for used_cluster bitmap. The reserved space could be used for blobstore growing
+in the future.
+
+### lvol
+
+Add num_md_pages_per_cluster_ratio parameter to the bdev_lvol_create_lvstore RPC.
+Calculate num_md_pages from num_md_pages_per_cluster_ratio, and pass it to spdk_bs_opts.
+
+### rpc
+
+New options `enable_ktls` and `tls_version` were added to the `sock_impl_set_options` structure.
+New options `psk_key` and `psk_identity` were added to the `sock_impl_set_options` structure.
+
+Added warning message for `bdev_rbd_create`, if it is used without -c.
+`bdev_rbd_create()` API without specifying -c is deprecated and will be removed in future release.
+
+### raid
+
+Renamed the `raid5` module to `raid5f` to reflect that it is not a traditional
+RAID5 implementation - only full stripe writes are supported, partial stripe
+writes (read-modify-write) are not.
+
+### accel
+
+Many names were changed in the accel framework to make them consistent both with themselves and
+the rest of SPDK. The primary public header file is now named `include/spdk/accel.h`.
+
+Added a new runtime RPC `accel_get_opc_assignments` to get a list of current opcode to engine
+assignements.
+
+Added a new startup RPC `accel_assign_opc` to assign/override a specific opcode to
+an engine.
+
+### nvme
+
+Added SPDK_NVME_TRANSPORT_CUSTOM_FABRICS to enum spdk_nvme_transport_type to support custom
+fabric transport. SPDK_NVME_TRANSPORT_CUSTOM was intended to be non-fabric custom transport.
+
+## v22.05
+
+### sock
+
+A new option `ack_timeout` was added to the `spdk_sock_opts` structure.
+
+### util
+
+A new parameter `bounce_iovcnt` was added to `spdk_dif_generate_copy` and `spdk_dif_verify_copy`.
+The `bounce_iovcnt` is used to specify the number of bounce_iov to support multiple block-aligned
+fragment copies.
+
+A new API `spdk_copy_iovs_to_buf` and `spdk_copy_buf_to_iovs` were added to copy iovs to buf or
+copy buf to iovs. There're many cases need to use these two APIs.
+
+### bdev
+
+Removed deprecated spdk_bdev_module_finish_done(). Use spdk_bdev_module_fini_done() instead.
 
 A new API `spdk_bdev_unregister_by_name` was added to handle race conditions correctly.
 
