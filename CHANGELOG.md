@@ -69,6 +69,17 @@ an engine.
 Added SPDK_NVME_TRANSPORT_CUSTOM_FABRICS to enum spdk_nvme_transport_type to support custom
 fabric transport. SPDK_NVME_TRANSPORT_CUSTOM was intended to be non-fabric custom transport.
 
+Added a new function `spdk_nvme_ns_cmd_verify` to submit a Verify Command to a Namespace.
+
+Added `spdk_nvme_ctrlr_disable_read_changed_ns_list_log_page` to allow an application to
+tell the driver to not read the CHANGED_NS_LIST log page in response to a NS_ATTR_CHANGED
+AEN.  When called the application is required to read this log page instead to clear the
+AEN.
+
+### util
+
+Added new functions: `spdk_hexlify` and `spdk_unhexlify`.
+
 ## v22.05
 
 ### sock

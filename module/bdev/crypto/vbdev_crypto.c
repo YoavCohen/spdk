@@ -41,6 +41,7 @@
 #include "spdk/thread.h"
 #include "spdk/bdev_module.h"
 #include "spdk/log.h"
+#include "spdk/hexlify.h"
 
 #include <rte_config.h>
 #include <rte_bus_vdev.h>
@@ -1470,15 +1471,15 @@ vbdev_crypto_dump_info_json(void *ctx, struct spdk_json_write_ctx *w)
 	char *hexkey = NULL, *hexkey2 = NULL;
 	int rc = 0;
 
-	hexkey = hexlify(crypto_bdev->opts->key,
-			 crypto_bdev->opts->key_size);
+	hexkey = spdk_hexlify(crypto_bdev->opts->key,
+			      crypto_bdev->opts->key_size);
 	if (!hexkey) {
 		return -ENOMEM;
 	}
 
 	if (crypto_bdev->opts->key2) {
-		hexkey2 = hexlify(crypto_bdev->opts->key2,
-				  crypto_bdev->opts->key2_size);
+		hexkey2 = spdk_hexlify(crypto_bdev->opts->key2,
+				       crypto_bdev->opts->key2_size);
 		if (!hexkey2) {
 			rc = -ENOMEM;
 			goto out_err;
@@ -1516,15 +1517,15 @@ vbdev_crypto_config_json(struct spdk_json_write_ctx *w)
 	TAILQ_FOREACH(crypto_bdev, &g_vbdev_crypto, link) {
 		char *hexkey = NULL, *hexkey2 = NULL;
 
-		hexkey = hexlify(crypto_bdev->opts->key,
-				 crypto_bdev->opts->key_size);
+		hexkey = spdk_hexlify(crypto_bdev->opts->key,
+				      crypto_bdev->opts->key_size);
 		if (!hexkey) {
 			return -ENOMEM;
 		}
 
 		if (crypto_bdev->opts->key2) {
-			hexkey2 = hexlify(crypto_bdev->opts->key2,
-					  crypto_bdev->opts->key2_size);
+			hexkey2 = spdk_hexlify(crypto_bdev->opts->key2,
+					       crypto_bdev->opts->key2_size);
 			if (!hexkey2) {
 				memset(hexkey, 0, strlen(hexkey));
 				free(hexkey);
