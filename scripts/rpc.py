@@ -258,14 +258,16 @@ if __name__ == "__main__":
                                                crypto_pmd=args.crypto_pmd,
                                                key=args.key,
                                                cipher=args.cipher,
-                                               key2=args.key2))
+                                               key2=args.key2,
+                                               key_name=args.key_name))
     p = subparsers.add_parser('bdev_crypto_create', help='Add a crypto vbdev')
     p.add_argument('base_bdev_name', help="Name of the base bdev")
     p.add_argument('name', help="Name of the crypto vbdev")
-    p.add_argument('crypto_pmd', help="Name of the crypto device driver")
-    p.add_argument('key', help="Key")
-    p.add_argument('-c', '--cipher', help="cipher to use, AES_CBC or AES_XTS (QAT only)", default="AES_CBC")
-    p.add_argument('-k2', '--key2', help="2nd key for cipher AET_XTS", default=None)
+    p.add_argument('-p', '--crypto-pmd', help="Name of the crypto device driver. Obsolete, see accel_crypto_key_create", required=False)
+    p.add_argument('-k', '--key', help="Key. Obsolete, see accel_crypto_key_create", required=False)
+    p.add_argument('-c', '--cipher', help="cipher to use. Obsolete, see accel_crypto_key_create", required=False)
+    p.add_argument('-k2', '--key2', help="2nd key for cipher AET_XTS. Obsolete, see accel_crypto_key_create", default=None)
+    p.add_argument('-n', '--key-name', help="Key name to use, see accel_crypto_key_create", required=False)
     p.set_defaults(func=bdev_crypto_create)
 
     def bdev_crypto_delete(args):
@@ -275,6 +277,17 @@ if __name__ == "__main__":
     p = subparsers.add_parser('bdev_crypto_delete', help='Delete a crypto disk')
     p.add_argument('name', help='crypto bdev name')
     p.set_defaults(func=bdev_crypto_delete)
+
+    def bdev_crypto_accel_create(args):
+        print_json(rpc.bdev.bdev_crypto_accel_create(args.client,
+                                                     base_bdev_name=args.base_bdev_name,
+                                                     name=args.name,
+                                                     dek=args.dek))
+    p = subparsers.add_parser('bdev_crypto_accel_create', help='Add a crypto accel vbdev')
+    p.add_argument('base_bdev_name', help="Name of the base bdev", type=str)
+    p.add_argument('name', help="Name of the crypto vbdev", type=str)
+    p.add_argument('dek', help="DEK name", type=str)
+    p.set_defaults(func=bdev_crypto_accel_create)
 
     def bdev_ocf_create(args):
         print_json(rpc.bdev.bdev_ocf_create(args.client,

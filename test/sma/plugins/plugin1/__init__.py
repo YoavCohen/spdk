@@ -2,6 +2,23 @@ from spdk.sma import DeviceManager
 from spdk.sma.proto import sma_pb2
 
 
+class TestCryptoEngine(CryptoEngine):
+    def __init__(self):
+        super().__init__('crypto-plugin1')
+
+    def setup(self, volume_id, key, cipher, key_name, key2=None):
+        pass
+
+    def cleanup(self, volume_id):
+        pass
+
+    def verify(self, volume_id, key, cipher, key_name, key2=None):
+        pass
+
+    def get_crypto_bdev(self, volume_id):
+        return volume_id
+
+
 class TestDeviceManager1(DeviceManager):
     def __init__(self, client):
         super().__init__('plugin1-device1', 'nvme', client)

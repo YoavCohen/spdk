@@ -164,7 +164,7 @@ may cause problems in some use cases.
 
 Example command
 
-`rpc.py bdev_crypto_create NVMe1n1 CryNvmeA crypto_aesni_mb 01234567891234560123456789123456`
+`rpc.py bdev_crypto_create NVMe1n1 CryNvmeA -p crypto_aesni_mb -k 01234567891234560123456789123456`
 
 This command will create a crypto vbdev called 'CryNvmeA' on top of the NVMe bdev
 'NVMe1n1' and will use the DPDK software driver 'crypto_aesni_mb' and the key

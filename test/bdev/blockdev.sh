@@ -28,7 +28,7 @@ function cleanup() {
 }
 
 function start_spdk_tgt() {
-	"$SPDK_BIN_DIR/spdk_tgt" "$env_ctx" &
+	"$SPDK_BIN_DIR/spdk_tgt" "$env_ctx" "$wait_for_rcp" &
 	spdk_tgt_pid=$!
 	trap 'killprocess "$spdk_tgt_pid"; exit 1' SIGINT SIGTERM EXIT
 	waitforlisten "$spdk_tgt_pid"
@@ -100,10 +100,16 @@ function setup_gpt_conf() {
 function setup_crypto_aesni_conf() {
 	# Malloc0 and Malloc1 use AESNI
 	"$rpc_py" <<- RPC
+		dpdk_cryptodev_accel_enable
+		accel_assign_opc -o encrypt -m dpdk_cryptodev
+		accel_assign_opc -o decrypt -m dpdk_cryptodev
+		framework_start_init
+		accel_crypto_key_create -c AES_CBC -k 01234567891234560123456789123456 -d crypto_qat -n test_dek_aesni_cbc_1
+		accel_crypto_key_create -c AES_CBC -k 01234567891234560123456789123456 -d crypto_qat -n test_dek_aesni_cbc_2
 		bdev_malloc_create -b Malloc0 16 512
 		bdev_malloc_create -b Malloc1 16 512
-		bdev_crypto_create Malloc0 crypto_ram crypto_aesni_mb 01234567891234560123456789123456
-		bdev_crypto_create Malloc1 crypto_ram2 crypto_aesni_mb 90123456789123459012345678912345
+		bdev_crypto_create Malloc0 crypto_ram -n test_dek_aesni_cbc_1
+		bdev_crypto_create Malloc1 crypto_ram2 -n test_dek_aesni_cbc_2
 	RPC
 }
 
@@ -111,10 +117,27 @@ function setup_crypto_qat_conf() {
 	# Malloc0 will use QAT AES_CBC
 	# Malloc1 will use QAT AES_XTS
 	"$rpc_py" <<- RPC
+		dpdk_cryptodev_accel_enable
+		accel_assign_opc -o encrypt -m dpdk_cryptodev
+		accel_assign_opc -o decrypt -m dpdk_cryptodev
+		framework_start_init
+		accel_crypto_key_create -c AES_CBC -k 01234567891234560123456789123456 -d crypto_qat -n test_dek_qat_cbc
+		accel_crypto_key_create -c AES_XTS -k 00112233445566778899001122334455 -e 01234567891234560123456789123456  -d crypto_qat -n test_dek_qat_xts
 		bdev_malloc_create -b Malloc0 16 512
 		bdev_malloc_create -b Malloc1 16 512
-		bdev_crypto_create Malloc0 crypto_ram crypto_qat 01234567891234560123456789123456
-		bdev_crypto_create -c AES_XTS -k2 01234567891234560123456789123456 Malloc1 crypto_ram3 crypto_qat 01234567891234560123456789123456
+		bdev_crypto_create Malloc0 crypto_ram -n test_dek_qat_cbc
+		bdev_crypto_create Malloc1 crypto_ram3 -n test_dek_qat_xts
+		bdev_get_bdevs -b Malloc1
+	RPC
+}
+
+function setup_crypto_sw_conf() {
+	"$rpc_py" <<- RPC
+		framework_start_init
+		bdev_malloc_create -b Malloc0 16 512
+		bdev_malloc_create -b Malloc1 16 512
+		accel_crypto_key_create -c AES_XTS -k 00112233445566778899001122334455 -e 11223344556677889900112233445500 -n test_dek_sw
+		bdev_crypto_create Malloc0 crypto_ram -n test_dek_sw
 		bdev_get_bdevs -b Malloc1
 	RPC
 }
@@ -145,8 +168,12 @@ function setup_crypto_mlx5_conf() {
 
 	# Malloc0 will use MLX5 AES_XTS
 	"$rpc_py" <<- RPC
+		dpdk_cryptodev_accel_enable
+		accel_assign_opc -o encrypt -m dpdk_cryptodev
+		accel_assign_opc -o decrypt -m dpdk_cryptodev
+		framework_start_init
 		bdev_malloc_create -b Malloc0 16 512
-		bdev_crypto_create -c AES_XTS -k2 $tweak_key Malloc0 crypto_ram4 mlx5_pci $block_key
+		bdev_crypto_create Malloc0 crypto_ram4 -p mlx5_pci -k $block_key -c AES_XTS -k2 $tweak_key
 		bdev_get_bdevs -b Malloc0
 	RPC
 }
@@ -412,6 +439,7 @@ crypto_device=$2
 wcs_file=$3
 dek=$4
 env_ctx=""
+wait_for_rcp=""
 if [ -n "$crypto_device" ] && [ -n "$wcs_file" ]; then
 	# We need full path here since fio perf test does 'pushd' to the test dir
 	# and crypto login of fio plugin test can fail.
@@ -422,6 +450,9 @@ if [ -n "$crypto_device" ] && [ -n "$wcs_file" ]; then
 		echo "ERROR: Credentials file $3 is not found!"
 		exit 1
 	fi
+fi
+if [[ $test_type == crypto_* ]]; then
+	wait_for_rcp="--wait-for-rpc"
 fi
 start_spdk_tgt
 case "$test_type" in
@@ -439,6 +470,9 @@ case "$test_type" in
 		;;
 	crypto_qat)
 		setup_crypto_qat_conf
+		;;
+	crypto_sw)
+		setup_crypto_sw_conf
 		;;
 	crypto_mlx5)
 		setup_crypto_mlx5_conf $dek
@@ -460,6 +494,7 @@ esac
 # Generate json config and use it throughout all the tests
 cat <<- CONF > "$conf_file"
 	        {"subsystems":[
+	        $("$rpc_py" save_subsystem_config -n accel),
 	        $("$rpc_py" save_subsystem_config -n bdev)
 	        ]}
 CONF

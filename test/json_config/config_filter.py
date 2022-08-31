@@ -36,6 +36,9 @@ def filter_methods(do_remove_global_rpcs):
         'sock_impl_set_options',
         'sock_set_default_impl',
         'framework_set_scheduler',
+        'accel_crypto_key_create',
+        'accel_assign_opc',
+        'dpdk_cryptodev_accel_enable',
     ]
 
     data = json.loads(sys.stdin.read())

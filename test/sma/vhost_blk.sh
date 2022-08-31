@@ -50,8 +50,16 @@ vm_run $vm_no
 vm_wait_for_boot 300 $vm_no
 timing_exit setup_vm
 
-$rootdir/build/bin/vhost -S /var/tmp -m 0x3 &
+$rootdir/build/bin/vhost -S /var/tmp -m 0x3 --wait-for-rpc &
 vhostpid=$!
+
+waitforlisten $vhostpid
+
+# Configure accel crypto module & operations
+rpc_cmd dpdk_cryptodev_accel_enable
+rpc_cmd accel_assign_opc -o encrypt -m dpdk_cryptodev
+rpc_cmd accel_assign_opc -o decrypt -m dpdk_cryptodev
+rpc_cmd framework_start_init
 
 $rootdir/scripts/sma.py -c <(
 	cat <<- EOF
@@ -148,6 +156,176 @@ done
 
 # And back to none
 [[ $(vm_exec $vm_no "lsblk | grep -E \"^vd.\" | wc -l") -eq 0 ]]
+
+key0=1234567890abcdef1234567890abcdef
+key_name=test_key
+rpc_cmd bdev_malloc_create -b malloc0 32 4096
+uuidc=$(rpc_cmd bdev_get_bdevs -b malloc0 | jq -r '.[].uuid')
+
+#Try to create controller with bdev crypto
+devid0=$(
+	"$rootdir/scripts/sma-client.py" <<- CREATE | jq -r '.handle'
+		{
+		  "method": "CreateDevice",
+		  "params": {
+		    "virtio_blk": {
+		      "physical_id": "0",
+		      "virtual_id": "0"
+		    },
+		    "volume": {
+		      "volume_id": "$(uuid2base64 $uuidc)",
+		      "crypto": {
+		        "cipher": "$(get_cipher AES_CBC)",
+		        "key": "$(format_key $key0)",
+		        "key_name": "$key_name"
+		      }
+		    }
+		  }
+		}
+	CREATE
+)
+
+[[ $(rpc_cmd vhost_get_controllers | jq -r '. | length') -eq 1 ]]
+bdev=$(rpc_cmd vhost_get_controllers | jq -r '.[].backend_specific.block.bdev')
+
+crypto_bdev=$(rpc_cmd bdev_get_bdevs | jq -r '.[] | select(.product_name == "crypto")')
+[[ $(jq -r '.driver_specific.crypto.key_name' <<< "$crypto_bdev") == "$key_name" ]]
+[[ $(jq -r '.driver_specific.crypto.name' <<< "$crypto_bdev") == "$bdev" ]]
+
+# Delete crypto device and check if it's gone
+delete_device $devid0
+[[ $(rpc_cmd bdev_get_bdevs | jq -r '.[] | select(.product_name == "crypto")' | jq -r length) -eq 0 ]]
+
+# Test qos
+device_vhost=2
+device=$(create_device 0 $uuid | jq -r '.handle')
+
+# First check the capabilities
+diff <(get_qos_caps $device_vhost | jq --sort-keys) <(
+	jq --sort-keys <<- CAPS
+		{
+		  "max_volume_caps": {
+		    "rw_iops": true,
+		    "rd_bandwidth": true,
+		    "wr_bandwidth": true,
+		    "rw_bandwidth": true
+		  }
+		}
+	CAPS
+)
+
+"$rootdir/scripts/sma-client.py" <<- EOF
+	{
+	  "method": "SetQos",
+	  "params": {
+	    "device_handle": "$device",
+	    "volume_id": "$(uuid2base64 $uuid)",
+	    "maximum": {
+	      "rd_iops": 0,
+	      "wr_iops": 0,
+	      "rw_iops": 3,
+	      "rd_bandwidth": 4,
+	      "wr_bandwidth": 5,
+	      "rw_bandwidth": 6
+	    }
+	  }
+	}
+EOF
+
+# Make sure that limits were changed
+diff <(rpc_cmd bdev_get_bdevs -b null63 | jq --sort-keys '.[].assigned_rate_limits') <(
+	jq --sort-keys <<- EOF
+		{
+		  "rw_ios_per_sec": 3000,
+		  "rw_mbytes_per_sec": 6,
+		  "r_mbytes_per_sec": 4,
+		  "w_mbytes_per_sec": 5
+		}
+	EOF
+)
+
+# Try to set capabilities with empty volume id
+"$rootdir/scripts/sma-client.py" <<- EOF
+	{
+	  "method": "SetQos",
+	  "params": {
+	    "device_handle": "$device",
+	    "volume_id": "",
+	    "maximum": {
+	      "rd_iops": 0,
+	      "wr_iops": 0,
+	      "rw_iops": 4,
+	      "rd_bandwidth": 5,
+	      "wr_bandwidth": 6,
+	      "rw_bandwidth": 7
+	    }
+	  }
+	}
+EOF
+
+# Make sure that limits were changed even if volume id is not set
+diff <(rpc_cmd bdev_get_bdevs -b null63 | jq --sort-keys '.[].assigned_rate_limits') <(
+	jq --sort-keys <<- EOF
+		{
+		  "rw_ios_per_sec": 4000,
+		  "rw_mbytes_per_sec": 7,
+		  "r_mbytes_per_sec": 5,
+		  "w_mbytes_per_sec": 6
+		}
+	EOF
+)
+
+# Try none-existing volume uuid
+NOT "$rootdir/scripts/sma-client.py" <<- EOF
+	{
+	  "method": "SetQos",
+	  "params": {
+	    "device_handle": "$device",
+	    "volume_id": "$(uuid2base64 $(uuidgen))",
+	    "maximum": {
+	      "rd_iops": 0,
+	      "wr_iops": 0,
+	      "rw_iops": 5,
+	      "rd_bandwidth": 6,
+	      "wr_bandwidth": 7,
+	      "rw_bandwidth": 8
+	    }
+	  }
+	}
+EOF
+
+# Try invalid (too short) volume uuid
+NOT "$rootdir/scripts/sma-client.py" <<- EOF
+	{
+	  "method": "SetQos",
+	  "params": {
+	    "device_handle": "$device",
+	    "volume_id": "$(base64 <<<'invalid'))",
+	    "maximum": {
+	      "rd_iops": 0,
+	      "wr_iops": 0,
+	      "rw_iops": 5,
+	      "rd_bandwidth": 6,
+	      "wr_bandwidth": 7,
+	      "rw_bandwidth": 8
+	    }
+	  }
+	}
+EOF
+
+# Values remain unchanged
+diff <(rpc_cmd bdev_get_bdevs -b null63 | jq --sort-keys '.[].assigned_rate_limits') <(
+	jq --sort-keys <<- EOF
+		{
+		  "rw_ios_per_sec": 4000,
+		  "rw_mbytes_per_sec": 7,
+		  "r_mbytes_per_sec": 5,
+		  "w_mbytes_per_sec": 6
+		}
+	EOF
+)
+
+delete_device "$device"
 
 cleanup
 trap - SIGINT SIGTERM EXIT

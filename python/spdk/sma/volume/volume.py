@@ -157,6 +157,51 @@ class VolumeManager:
             raise VolumeException(grpc.StatusCode.INTERNAL,
                                   'Failed to stop discovery')
 
+<<<<<<< HEAD
+=======
+    def _get_crypto_params(self, params):
+        key, cipher, key_name, key2 = None, None, None, None
+        try:
+            if params.HasField('crypto'):
+                key, cipher = params.crypto.key.decode('ascii'), params.crypto.cipher
+                if len(params.crypto.key2) > 0:
+                    key2 = params.crypto.key2.decode('ascii')
+                if len(params.crypto.key_name) > 0:
+                    key_name = params.crypto.key_name
+        except UnicodeDecodeError:
+            raise VolumeException(grpc.StatusCode.INVALID_ARGUMENT,
+                                  'Corrupted crypto key')
+        return key, cipher, key_name, key2
+
+    def _setup_crypto(self, volume_id, params):
+        try:
+            if not params.HasField('crypto'):
+                return
+            key, cipher, key_name, key2 = self._get_crypto_params(params)
+            if key_name is None:
+                raise VolumeException(grpc.StatusCode.INVALID_ARGUMENT, 'Invalid key_name')
+            crypto.get_crypto_engine().setup(volume_id, key, cipher, key_name, key2)
+        except crypto.CryptoException as ex:
+            raise VolumeException(ex.code, ex.message)
+
+    def _cleanup_crypto(self, volume_id):
+        try:
+            crypto.get_crypto_engine().cleanup(volume_id)
+        except crypto.CryptoException as ex:
+            logging.warning(f'Failed to cleanup crypto: {ex.message}')
+
+    def _verify_crypto(self, volume_id, params):
+        try:
+            if not params.HasField('crypto'):
+                return
+            key, cipher, key_name, key2 = self._get_crypto_params(params)
+            if key_name is None:
+                raise VolumeException(grpc.StatusCode.INVALID_ARGUMENT, 'Invalid key_name')
+            crypto.get_crypto_engine().verify(volume_id, key, cipher, key_name, key2)
+        except crypto.CryptoException as ex:
+            raise VolumeException(ex.code, ex.message)
+
+>>>>>>> 28ef0366fd (bdev/crypto: Use accel framework)
     @_locked
     def connect_volume(self, params, device_handle=None):
         """ Connects a volume through a discovery service.  Returns a tuple (volume_id, existing):

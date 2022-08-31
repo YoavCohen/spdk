@@ -98,23 +98,33 @@ def bdev_compress_get_orphans(client, name=None):
     return client.call('bdev_compress_get_orphans', params)
 
 
-def bdev_crypto_create(client, base_bdev_name, name, crypto_pmd, key, cipher=None, key2=None):
+def bdev_crypto_create(client, base_bdev_name, name, crypto_pmd=None, key=None, cipher=None, key2=None, key_name=None):
     """Construct a crypto virtual block device.
 
     Args:
         base_bdev_name: name of the underlying base bdev
         name: name for the crypto vbdev
-        crypto_pmd: name of of the DPDK crypto driver to use
+        crypto_pmd: name of the DPDK crypto driver to use
         key: key
+        cipher: crypto algorithm to use
+        key2: Optional second part of the key
+        key_name: The key name to use in crypto operations
 
     Returns:
         Name of created virtual block device.
     """
-    params = {'base_bdev_name': base_bdev_name, 'name': name, 'crypto_pmd': crypto_pmd, 'key': key}
-    if cipher:
-        params['cipher'] = cipher
-    if key2:
+    params = {'base_bdev_name': base_bdev_name, 'name': name}
+
+    if crypto_pmd is not None:
+        params['crypto_pmd'] = crypto_pmd
+    if key is not None:
+        params['key'] = key
+    if key2 is not None:
         params['key2'] = key2
+    if cipher is not None:
+        params['cipher'] = cipher
+    if key_name is not None:
+        params['key_name'] = key_name
     return client.call('bdev_crypto_create', params)
 
 
@@ -126,6 +136,31 @@ def bdev_crypto_delete(client, name):
     """
     params = {'name': name}
     return client.call('bdev_crypto_delete', params)
+
+
+def bdev_crypto_accel_create(client, base_bdev_name, name, dek):
+    """Construct a crypto virtual block device.
+
+    Args:
+        base_bdev_name: name of the underlying base bdev
+        name: name for the crypto vbdev
+        dek: DEK name
+
+    Returns:
+        Name of created virtual block device.
+    """
+    params = {'base_bdev_name': base_bdev_name, 'name': name, 'dek': dek}
+    return client.call('bdev_crypto_accel_create', params)
+
+
+def bdev_crypto_accel_delete(client, name):
+    """Delete crypto virtual block device.
+
+    Args:
+        name: name of crypto vbdev to delete
+    """
+    params = {'name': name}
+    return client.call('bdev_crypto_accel_delete', params)
 
 
 def bdev_ocf_create(client, name, mode, cache_line_size, cache_bdev_name, core_bdev_name):

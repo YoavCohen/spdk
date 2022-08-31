@@ -2397,13 +2397,15 @@ Create a new crypto bdev on a given base bdev.
 #### Parameters
 
 Name                    | Optional | Type        | Description
------------------------ | -------- | ----------- | -----------
+----------------------- |----------| ----------- | -----------
 base_bdev_name          | Required | string      | Name of the base bdev
 name                    | Required | string      | Name of the crypto vbdev to create
-crypto_pmd              | Required | string      | Name of the crypto device driver
-key                     | Required | string      | Key in hex form
-cipher                  | Required | string      | Cipher to use, AES_CBC or AES_XTS (QAT and MLX5)
-key2                    | Required | string      | 2nd key in hex form only required for cipher AET_XTS
+crypto_pmd              | Optional | string      | Name of the crypto device driver. Obsolete, see accel_crypto_key_create
+key                     | Optional | string      | Key in hex form. Obsolete, see accel_crypto_key_create
+cipher                  | Optional | string      | Cipher to use, AES_CBC or AES_XTS (QAT and MLX5). Obsolete, see accel_crypto_key_create
+key2                    | Optional | string      | 2nd key in hex form only required for cipher AET_XTS. Obsolete, see accel_crypto_key_create
+key_name                | Optional | string      | Name of the key created with accel_crypto_key_create
+module                  | Optional | string      | Name of the accel module which is used to create a key (if no key_name specified)
 
 Both key and key2 must be passed in the hexlified form. For example, 256bit AES key may look like this:
 afd9477abf50254219ccb75965fbe39f23ebead5676e292582a0a67f66b88215
