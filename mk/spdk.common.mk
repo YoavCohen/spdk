@@ -4,6 +4,7 @@
 #  Copyright (c) Intel Corporation.
 #  Copyright (c) 2017, IBM Corporation.
 #  Copyright (c) 2019, 2021 Mellanox Corporation.
+#  Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES
 #  All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
@@ -179,9 +180,14 @@ endif
 IPSEC_MB_DIR=$(CONFIG_IPSEC_MB_DIR)
 
 ISAL_DIR=$(SPDK_ROOT_DIR)/isa-l
+ISAL_CRYPTO_DIR=$(SPDK_ROOT_DIR)/isa-l-crypto
 ifeq ($(CONFIG_ISAL), y)
 SYS_LIBS += -L$(ISAL_DIR)/.libs -lisal
 COMMON_CFLAGS += -I$(ISAL_DIR)/..
+ifeq ($(CONFIG_CRYPTO), y)
+SYS_LIBS += -L$(ISAL_CRYPTO_DIR)/.libs -lisal_crypto
+COMMON_CFLAGS += -I$(ISAL_CRYPTO_DIR)/..
+endif
 endif
 
 ifeq ($(CONFIG_VFIO_USER), y)

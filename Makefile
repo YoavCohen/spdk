@@ -3,6 +3,7 @@
 #
 #  Copyright (c) Intel Corporation.
 #  Copyright (c) 2020, Mellanox Corporation.
+#  Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES
 #  All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
@@ -46,6 +47,7 @@ DIRS-$(CONFIG_APPS) += app
 DIRS-y += test
 DIRS-$(CONFIG_IPSEC_MB) += ipsecbuild
 DIRS-$(CONFIG_ISAL) += isalbuild
+DIRS-$(CONFIG_CRYPTO) += isalcryptobuild
 DIRS-$(CONFIG_VFIO_USER) += vfiouserbuild
 DIRS-y += python
 
@@ -88,6 +90,9 @@ endif
 ifeq ($(CONFIG_ISAL),y)
 LIB += isalbuild
 DPDK_DEPS += isalbuild
+ifeq ($(CONFIG_CRYPTO),y)
+LIB += isalcryptobuild
+endif
 endif
 
 ifeq ($(CONFIG_VFIO_USER),y)

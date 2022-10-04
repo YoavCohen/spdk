@@ -12,6 +12,12 @@ The APIs include:
 
 A new flag `ACCEL_FLAG_PERSISTENT` was added to indicate the target memory is PMEM.
 
+### accel
+
+New library isa-l-crypto has been added, it is used by accel library in crypto operations.
+
+### scheduler
+
 The API `spdk_accel_get_capabilities` has been removed.
 
 ### bdev
