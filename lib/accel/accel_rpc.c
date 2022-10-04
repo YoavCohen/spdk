@@ -186,6 +186,7 @@ static const struct spdk_json_object_decoder rpc_accel_dek_create_decoders[] = {
 	{"key", offsetof(struct rpc_accel_crypto_key_create, param.key1), spdk_json_decode_string},
 	{"key2", offsetof(struct rpc_accel_crypto_key_create, param.key2), spdk_json_decode_string, true},
 	{"name", offsetof(struct rpc_accel_crypto_key_create, param.key_name), spdk_json_decode_string},
+	{"driver", offsetof(struct rpc_accel_crypto_key_create, param.driver_name), spdk_json_decode_string, true},
 };
 
 static void
@@ -222,6 +223,7 @@ cleanup:
 	}
 	free(req.param.key2);
 	free(req.param.key_name);
+	free(req.param.driver_name);
 	free(req.module);
 }
 SPDK_RPC_REGISTER("accel_crypto_key_create", rpc_accel_crypto_key_create, SPDK_RPC_RUNTIME)

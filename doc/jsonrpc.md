@@ -1637,6 +1637,7 @@ cipher     | Required | string      | crypto cipher to use
 key        | Required | string      | Key in **hex** form
 key2       | Optional | string      | Optional 2nd part of the key or a tweak in **hex** form
 name       | Required | string      | The key name
+driver     | Optional | string      | Driver name to be used. Optional param for some accel modules. E.g. "crypto_aesni_mb" or "crypto_qat" for dpdk_cryptodev module
 
 #### Example
 
@@ -1797,6 +1798,36 @@ Example request:
 {
   "jsonrpc": "2.0",
   "method": "ioat_scan_accel_module",
+  "id": 1
+}
+~~~
+
+Example response:
+
+~~~json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": true
+}
+~~~
+
+### dpdk_cryptodev_accel_enable {#rpc_dpdk_cryptodev_accel_enable}
+
+Enable dpdk_cryptodev accel offload
+
+#### Parameters
+
+None
+
+#### Example
+
+Example request:
+
+~~~json
+{
+  "jsonrpc": "2.0",
+  "method": "dpdk_cryptodev_accel_enable",
   "id": 1
 }
 ~~~

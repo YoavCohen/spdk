@@ -2,6 +2,7 @@
 #  BSD LICENSE
 #
 #  Copyright (c) Intel Corporation.
+#  Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES
 #  All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
@@ -38,6 +39,7 @@ DIRS-y = ioat
 
 DIRS-$(CONFIG_IDXD) += dsa
 DIRS-$(CONFIG_IDXD) += iaa
+DIRS-$(CONFIG_CRYPTO) += dpdk_cryptodev
 
 .PHONY: all clean $(DIRS-y)
 

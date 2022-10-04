@@ -54,6 +54,7 @@ struct spdk_accel_crypto_key_create_param {
 	char *key1;		/**< Hexlified key1 */
 	char *key2;		/**< Hexlified key2 */
 	char *key_name;		/**< Key name */
+	char *driver_name;	/**< Optional data which may be required for some modules */
 };
 
 struct spdk_accel_crypto_key {

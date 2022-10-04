@@ -29,7 +29,7 @@ def accel_assign_opc(client, opname, module):
     return client.call('accel_assign_opc', params)
 
 
-def accel_crypto_key_create(client, module, cipher, key, key2, name):
+def accel_crypto_key_create(client, module, cipher, key, key2, name, driver):
     """Create Data Encryption Key Identifier.
 
     Args:
@@ -38,6 +38,7 @@ def accel_crypto_key_create(client, module, cipher, key, key2, name):
         key: key
         key2: key2
         name: key name
+        driver: driver name, required by some modules
     """
     params = {
         'cipher': cipher,
@@ -48,6 +49,8 @@ def accel_crypto_key_create(client, module, cipher, key, key2, name):
         params['key2'] = key2
     if module is not None:
         params['module'] = module
+    if driver is not None:
+        params['driver'] = driver
 
     return client.call('accel_crypto_key_create', params)
 

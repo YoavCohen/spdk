@@ -635,6 +635,7 @@ accel_crypto_key_free_mem(struct spdk_accel_crypto_key *key)
 	free(key->param.key2);
 	free(key->param.key_name);
 	free(key->param.cipher);
+	free(key->param.driver_name);
 	if (key->key1) {
 		memset(key->key1, 0, key->key1_size);
 	}
@@ -711,6 +712,14 @@ spdk_accel_crypto_key_create(const char *module_name,
 	if (!key->param.cipher) {
 		rc = -ENOMEM;
 		goto error;
+	}
+
+	if (param->driver_name) {
+		key->param.driver_name = strdup(param->driver_name);
+		if (!key->param.driver_name) {
+			accel_crypto_key_free_mem(key);
+			return -ENOMEM;
+		}
 	}
 
 	key1_size_hex = strnlen(param->key1, SPDK_ACCEL_CRYPTO_KEY_MAX_HEX_LENGTH);
@@ -990,6 +999,9 @@ __accel_crypto_key_dump_param(struct spdk_json_write_ctx *w, struct spdk_accel_c
 	spdk_json_write_named_string(w, "key", key->param.key1);
 	if (key->param.key2) {
 		spdk_json_write_named_string(w, "key2", key->param.key2);
+	}
+	if (key->param.driver_name) {
+		spdk_json_write_named_string(w, "driver", key->param.driver_name);
 	}
 }
 

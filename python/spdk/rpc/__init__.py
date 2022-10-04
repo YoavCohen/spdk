@@ -25,6 +25,7 @@ from . import trace
 from . import vhost
 from . import vmd
 from . import sock
+from . import dpdk_cryptodev
 from . import client as rpc_client
 from .helpers import deprecated_alias
 

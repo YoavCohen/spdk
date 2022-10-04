@@ -2,8 +2,8 @@
 #  BSD LICENSE
 #
 #  Copyright (c) Intel Corporation.
+#  Copyright (c) 2021, 2022 NVIDIA CORPORATION & AFFILIATES.
 #  All rights reserved.
-#  Copyright (c) 2021 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions
@@ -123,6 +123,9 @@ endif
 ACCEL_MODULES_LIST = accel_ioat ioat
 ifeq ($(CONFIG_IDXD),y)
 ACCEL_MODULES_LIST += accel_dsa accel_iaa idxd
+endif
+ifeq ($(CONFIG_CRYPTO),y)
+ACCEL_MODULES_LIST += accel_dpdk_cryptodev
 endif
 
 SCHEDULER_MODULES_LIST = scheduler_dynamic

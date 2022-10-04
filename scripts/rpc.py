@@ -2557,7 +2557,8 @@ Format: 'user:u1 secret:s1 muser:mu1 msecret:ms1,user:u2 secret:s2 muser:mu2 mse
                                                      cipher=args.cipher,
                                                      key=args.key,
                                                      key2=args.key2,
-                                                     name=args.name))
+                                                     name=args.name,
+                                                     driver=args.driver))
 
     p = subparsers.add_parser('accel_crypto_key_create', help='Create encryption key')
     p.add_argument('-m', '--module', help='accel module name', type=str)
@@ -2565,6 +2566,7 @@ Format: 'user:u1 secret:s1 muser:mu1 msecret:ms1,user:u2 secret:s2 muser:mu2 mse
     p.add_argument('-k', '--key', help='key', required=True, type=str)
     p.add_argument('-e', '--key2', help='key2', required=False, type=str)
     p.add_argument('-n', '--name', help='key name', required=True, type=str)
+    p.add_argument('-d', '--driver', help='driver name, required by some modules', required=False, type=str)
     p.set_defaults(func=accel_crypto_key_create)
 
     def accel_crypto_keys_get(args):
@@ -2599,6 +2601,13 @@ Format: 'user:u1 secret:s1 muser:mu1 msecret:ms1,user:u2 secret:s2 muser:mu2 mse
     p = subparsers.add_parser('iaa_scan_accel_module',
                               help='Set config and enable iaa accel module offload.')
     p.set_defaults(func=iaa_scan_accel_module)
+
+    def dpdk_cryptodev_accel_enable(args):
+        rpc.dpdk_cryptodev.dpdk_cryptodev_accel_enable(args.client)
+
+    p = subparsers.add_parser('dpdk_cryptodev_accel_enable',
+                              help='Enable dpdk_cryptodev accel module offload.')
+    p.set_defaults(func=dpdk_cryptodev_accel_enable)
 
     # opal
     def bdev_nvme_opal_init(args):
