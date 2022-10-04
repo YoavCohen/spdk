@@ -45,6 +45,7 @@
 #include "spdk/json.h"
 #include "spdk/crc32.h"
 #include "spdk/util.h"
+#include "spdk/hexlify.h"
 
 /* Accelerator Framework: The following provides a top level
  * generic API for the accelerator functions defined here. Modules,
@@ -68,13 +69,17 @@ static bool g_modules_started = false;
 static TAILQ_HEAD(, spdk_accel_module_if) spdk_accel_module_list =
 	TAILQ_HEAD_INITIALIZER(spdk_accel_module_list);
 
+/* Crypto keyring */
+static TAILQ_HEAD(, spdk_accel_crypto_key) g_keyring = TAILQ_HEAD_INITIALIZER(g_keyring);
+static pthread_mutex_t g_keyring_lock = PTHREAD_MUTEX_INITIALIZER;
+
 /* Global array mapping capabilities to modules */
 static struct spdk_accel_module_if *g_modules_opc[ACCEL_OPC_LAST] = {};
 static char *g_modules_opc_override[ACCEL_OPC_LAST] = {};
 
 static const char *g_opcode_strings[ACCEL_OPC_LAST] = {
 	"copy", "fill", "dualcast", "compare", "crc32c", "copy_crc32c",
-	"compress", "decompress"
+	"compress", "decompress", "encrypt", "decrypt"
 };
 
 struct accel_io_channel {
@@ -191,8 +196,6 @@ _get_task(struct accel_io_channel *accel_ch, spdk_accel_completion_cb cb_fn, voi
 
 	return accel_task;
 }
-
-
 
 /* Accel framework public API for copy function */
 int
@@ -466,8 +469,6 @@ spdk_accel_submit_compress(struct spdk_io_channel *ch, void *dst, uint64_t nbyte
 	accel_task->op_code = ACCEL_OPC_COMPRESS;
 
 	return module->submit_tasks(module_ch, accel_task);
-
-	return 0;
 }
 
 int
@@ -493,10 +494,101 @@ spdk_accel_submit_decompress(struct spdk_io_channel *ch, struct iovec *dst_iovs,
 	accel_task->op_code = ACCEL_OPC_DECOMPRESS;
 
 	return module->submit_tasks(module_ch, accel_task);
-
-	return 0;
 }
 
+int
+spdk_accel_submit_encrypt(struct spdk_io_channel *ch, struct spdk_accel_crypto_key *key,
+			  struct iovec *dst_iovs, uint32_t dst_iovcnt,
+			  struct iovec *src_iovs, uint32_t src_iovcnt,
+			  uint64_t iv, uint32_t block_size, int flags,
+			  spdk_accel_completion_cb cb_fn, void *cb_arg)
+{
+	struct accel_io_channel *accel_ch = spdk_io_channel_get_ctx(ch);
+	struct spdk_accel_task *accel_task;
+	struct spdk_accel_module_if *module = g_modules_opc[ACCEL_OPC_ENCRYPT];
+	struct spdk_io_channel *module_ch = accel_ch->module_ch[ACCEL_OPC_ENCRYPT];
+	size_t src_nbytes = 0, dst_nbytes = 0;
+	uint32_t i;
+
+	if (spdk_unlikely(!dst_iovs || !dst_iovcnt || !src_iovs || !src_iovcnt || !key)) {
+		return -EINVAL;
+	}
+
+	for (i = 0; i < src_iovcnt; i++) {
+		src_nbytes += src_iovs[i].iov_len;
+	}
+	for (i = 0; i < dst_iovcnt; i++) {
+		dst_nbytes += dst_iovs[i].iov_len;
+	}
+	if (spdk_unlikely(src_nbytes != dst_nbytes || !src_nbytes)) {
+		return -ERANGE;
+	}
+
+	accel_task = _get_task(accel_ch, cb_fn, cb_arg);
+	if (accel_task == NULL) {
+		return -ENOMEM;
+	}
+
+	accel_task->crypto_key = key;
+	accel_task->s.iovs = src_iovs;
+	accel_task->s.iovcnt = src_iovcnt;
+	accel_task->d.iovs = dst_iovs;
+	accel_task->d.iovcnt = dst_iovcnt;
+	accel_task->nbytes = src_nbytes;
+	accel_task->iv = iv;
+	accel_task->block_size = block_size;
+	accel_task->flags = flags;
+	accel_task->op_code = ACCEL_OPC_ENCRYPT;
+
+	return module->submit_tasks(module_ch, accel_task);
+}
+
+int
+spdk_accel_submit_decrypt(struct spdk_io_channel *ch, struct spdk_accel_crypto_key *key,
+			  struct iovec *dst_iovs, uint32_t dst_iovcnt,
+			  struct iovec *src_iovs, uint32_t src_iovcnt,
+			  uint64_t iv, uint32_t block_size, int flags,
+			  spdk_accel_completion_cb cb_fn, void *cb_arg)
+{
+	struct accel_io_channel *accel_ch = spdk_io_channel_get_ctx(ch);
+	struct spdk_accel_task *accel_task;
+	struct spdk_accel_module_if *module = g_modules_opc[ACCEL_OPC_DECRYPT];
+	struct spdk_io_channel *module_ch = accel_ch->module_ch[ACCEL_OPC_DECRYPT];
+	size_t src_nbytes = 0, dst_nbytes = 0;
+	uint32_t i;
+
+	if (spdk_unlikely(!dst_iovs || !dst_iovcnt || !src_iovs || !src_iovcnt || !key || !block_size)) {
+		return -EINVAL;
+	}
+
+	for (i = 0; i < src_iovcnt; i++) {
+		src_nbytes += src_iovs[i].iov_len;
+	}
+	for (i = 0; i < dst_iovcnt; i++) {
+		dst_nbytes += dst_iovs[i].iov_len;
+	}
+	if (spdk_unlikely(src_nbytes != dst_nbytes || !src_nbytes)) {
+		return -ERANGE;
+	}
+
+	accel_task = _get_task(accel_ch, cb_fn, cb_arg);
+	if (accel_task == NULL) {
+		return -ENOMEM;
+	}
+
+	accel_task->crypto_key = key;
+	accel_task->s.iovs = src_iovs;
+	accel_task->s.iovcnt = src_iovcnt;
+	accel_task->d.iovs = dst_iovs;
+	accel_task->d.iovcnt = dst_iovcnt;
+	accel_task->nbytes = src_nbytes;
+	accel_task->iv = iv;
+	accel_task->block_size = block_size;
+	accel_task->flags = flags;
+	accel_task->op_code = ACCEL_OPC_DECRYPT;
+
+	return module->submit_tasks(module_ch, accel_task);
+}
 
 static struct spdk_accel_module_if *
 _module_find_by_name(const char *name)
@@ -512,8 +604,211 @@ _module_find_by_name(const char *name)
 	return accel_module;
 }
 
-/* Helper function when when accel modules register with the framework. */
-void spdk_accel_module_list_add(struct spdk_accel_module_if *accel_module)
+/* To be called with locked g_keyring_lock */
+static inline struct spdk_accel_crypto_key *
+_accel_crypto_key_get(const char *name)
+{
+	struct spdk_accel_crypto_key *key;
+
+	TAILQ_FOREACH(key, &g_keyring, link) {
+		if (strcmp(name, key->param.key_name) == 0) {
+			return key;
+		}
+	}
+	return NULL;
+}
+
+static void
+accel_crypto_key_free_mem(struct spdk_accel_crypto_key *key)
+{
+	size_t key_size_hex;
+
+	if (key->param.key1) {
+		key_size_hex = strnlen(key->param.key1, SPDK_ACCEL_CRYPTO_KEY_MAX_HEX_LENGTH);
+		memset(key->param.key1, 0, key_size_hex);
+	}
+	free(key->param.key1);
+	if (key->param.key2) {
+		key_size_hex = strnlen(key->param.key2, SPDK_ACCEL_CRYPTO_KEY_MAX_HEX_LENGTH);
+		memset(key->param.key2, 0, key_size_hex);
+	}
+	free(key->param.key2);
+	free(key->param.key_name);
+	free(key->param.cipher);
+	if (key->key1) {
+		memset(key->key1, 0, key->key1_size);
+	}
+	free(key->key1);
+	if (key->key2) {
+		memset(key->key2, 0, key->key2_size);
+	}
+	free(key->key2);
+	free(key);
+}
+
+static void
+accel_crypto_key_destroy_unsafe(struct spdk_accel_crypto_key *key)
+{
+	assert(key->module_if);
+	assert(key->module_if->crypto_key_deinit);
+
+	key->module_if->crypto_key_deinit(key);
+	accel_crypto_key_free_mem(key);
+}
+
+int
+spdk_accel_crypto_key_create(const char *module_name,
+			     const struct spdk_accel_crypto_key_create_param *param)
+{
+	struct spdk_accel_module_if *module;
+	struct spdk_accel_crypto_key *key;
+	size_t key1_size_hex, key2_size_hex;
+	int rc = 0;
+
+	if (!param || !param->key1 || !param->cipher || !param->key_name) {
+		return -EINVAL;
+	}
+
+	pthread_mutex_lock(&g_keyring_lock);
+	if (_accel_crypto_key_get(param->key_name)) {
+		rc = -EEXIST;
+	}
+	pthread_mutex_unlock(&g_keyring_lock);
+	if (rc) {
+		return rc;
+	}
+
+	if (module_name) {
+		module = _module_find_by_name(module_name);
+	} else {
+		if (g_modules_opc[ACCEL_OPC_ENCRYPT] != g_modules_opc[ACCEL_OPC_DECRYPT]) {
+			/* hardly possible, but let's check and warn the user */
+			SPDK_WARNLOG("Different accel modules are used for encryption and decryption\n");
+		}
+		module = g_modules_opc[ACCEL_OPC_ENCRYPT];
+	}
+	if (!module) {
+		SPDK_ERRLOG("No accel module found\n");
+		return -ENOENT;
+	}
+	if (!module->crypto_key_init) {
+		SPDK_ERRLOG("Accel module \"%s\" doesn't support crypto operations\n", module->name);
+		return -ENOTSUP;
+	}
+
+	key = calloc(1, sizeof(*key));
+	if (!key) {
+		return -ENOMEM;
+	}
+
+	key->param.key_name = strdup(param->key_name);
+	if (!key->param.key_name) {
+		rc = -ENOMEM;
+		goto error;
+	}
+
+	key->param.cipher = strdup(param->cipher);
+	if (!key->param.cipher) {
+		rc = -ENOMEM;
+		goto error;
+	}
+
+	key1_size_hex = strnlen(param->key1, SPDK_ACCEL_CRYPTO_KEY_MAX_HEX_LENGTH);
+	if (key1_size_hex == SPDK_ACCEL_CRYPTO_KEY_MAX_HEX_LENGTH) {
+		SPDK_ERRLOG("key1 size exceeds max %d\n", SPDK_ACCEL_CRYPTO_KEY_MAX_HEX_LENGTH);
+		rc = -EINVAL;
+		goto error;
+	}
+	key->param.key1 = strdup(param->key1);
+	if (!key->param.cipher) {
+		rc = -ENOMEM;
+		goto error;
+	}
+
+	key->key1_size = key1_size_hex / 2;
+	key->key1 = spdk_unhexlify(key->param.key1);
+	if (!key->key1) {
+		SPDK_ERRLOG("Failed to unhexlify key1\n");
+		rc = -EINVAL;
+		goto error;
+	}
+
+	if (param->key2) {
+		key2_size_hex = strnlen(param->key2, SPDK_ACCEL_CRYPTO_KEY_MAX_HEX_LENGTH);
+		if (key2_size_hex == SPDK_ACCEL_CRYPTO_KEY_MAX_HEX_LENGTH) {
+			SPDK_ERRLOG("key2 size exceeds max %d\n", SPDK_ACCEL_CRYPTO_KEY_MAX_HEX_LENGTH);
+			rc = -EINVAL;
+			goto error;
+		}
+		key->param.key2 = strdup(param->key2);
+		if (!key->param.key2) {
+			rc = -ENOMEM;
+			goto error;
+		}
+
+		key->key2_size = key2_size_hex / 2;
+		key->key2 = spdk_unhexlify(key->param.key2);
+		if (!key->key2) {
+			SPDK_ERRLOG("Failed to unhexlify key2\n");
+			rc = -EINVAL;
+			goto error;
+		}
+	}
+
+	key->module_if = module;
+
+	rc = module->crypto_key_init(key);
+	if (rc) {
+		rc = -EINVAL;
+		goto error;
+	}
+
+	pthread_mutex_lock(&g_keyring_lock);
+	TAILQ_INSERT_TAIL(&g_keyring, key, link);
+	pthread_mutex_unlock(&g_keyring_lock);
+
+	return 0;
+
+error:
+	accel_crypto_key_free_mem(key);
+	return rc;
+}
+
+int
+spdk_accel_crypto_key_destroy(struct spdk_accel_crypto_key *key)
+{
+	if (!key || !key->module_if) {
+		return -EINVAL;
+	}
+
+	pthread_mutex_lock(&g_keyring_lock);
+	if (!_accel_crypto_key_get(key->param.key_name)) {
+		pthread_mutex_unlock(&g_keyring_lock);
+		return -ENOENT;
+	}
+	TAILQ_REMOVE(&g_keyring, key, link);
+	pthread_mutex_unlock(&g_keyring_lock);
+
+	accel_crypto_key_destroy_unsafe(key);
+
+	return 0;
+}
+
+struct spdk_accel_crypto_key *
+spdk_accel_crypto_key_get(const char *name)
+{
+	struct spdk_accel_crypto_key *key;
+
+	pthread_mutex_lock(&g_keyring_lock);
+	key = _accel_crypto_key_get(name);
+	pthread_mutex_unlock(&g_keyring_lock);
+
+	return key;
+}
+
+/* Helper function when accel modules register with the framework. */
+void
+spdk_accel_module_list_add(struct spdk_accel_module_if *accel_module)
 {
 	if (_module_find_by_name(accel_module->name)) {
 		SPDK_NOTICELOG("Accel module %s already registered\n", accel_module->name);
@@ -523,7 +818,7 @@ void spdk_accel_module_list_add(struct spdk_accel_module_if *accel_module)
 
 	/* Make sure that the software module is at the head of the list, this
 	 * will assure that all opcodes are later assigned to software first and
-	 * then udpated to HW modules as they are registered.
+	 * then updated to HW modules as they are registered.
 	 */
 	if (strcmp(accel_module->name, "software") == 0) {
 		TAILQ_INSERT_HEAD(&spdk_accel_module_list, accel_module, tailq);
@@ -619,9 +914,9 @@ spdk_accel_initialize(void)
 
 	/* Create our priority global map of opcodes to modules, we populate starting
 	 * with the software module (guaranteed to be first on the list) and then
-	 * updating opcodes with HW modules that have been initilaized.
-	 * NOTE: all opcodes must be suported by software in the event that no HW
-	 * modules are initilaized to support the operation.
+	 * updating opcodes with HW modules that have been initialized.
+	 * NOTE: all opcodes must be supported by software in the event that no HW
+	 * modules are initialized to support the operation.
 	 */
 	TAILQ_FOREACH(accel_module, &spdk_accel_module_list, tailq) {
 		for (op = 0; op < ACCEL_OPC_LAST; op++) {
@@ -686,6 +981,60 @@ accel_write_overridden_opc(struct spdk_json_write_ctx *w, const char *opc_str,
 	spdk_json_write_object_end(w);
 }
 
+static void
+__accel_crypto_key_dump_param(struct spdk_json_write_ctx *w, struct spdk_accel_crypto_key *key)
+{
+	spdk_json_write_named_string(w, "name", key->param.key_name);
+	spdk_json_write_named_string(w, "module", key->module_if->name);
+	spdk_json_write_named_string(w, "cipher", key->param.cipher);
+	spdk_json_write_named_string(w, "key", key->param.key1);
+	if (key->param.key2) {
+		spdk_json_write_named_string(w, "key2", key->param.key2);
+	}
+}
+
+void
+_accel_crypto_key_dump_param(struct spdk_json_write_ctx *w, struct spdk_accel_crypto_key *key)
+{
+	spdk_json_write_object_begin(w);
+	__accel_crypto_key_dump_param(w, key);
+	spdk_json_write_object_end(w);
+}
+
+static void
+_accel_crypto_key_write_config_json(struct spdk_json_write_ctx *w,
+				    struct spdk_accel_crypto_key *key)
+{
+	spdk_json_write_object_begin(w);
+	spdk_json_write_named_string(w, "method", "accel_crypto_key_create");
+	spdk_json_write_named_object_begin(w, "params");
+	__accel_crypto_key_dump_param(w, key);
+	spdk_json_write_object_end(w);
+	spdk_json_write_object_end(w);
+}
+
+static void
+_accel_crypto_keys_write_config_json(struct spdk_json_write_ctx *w, bool full_dump)
+{
+	struct spdk_accel_crypto_key *key;
+
+	pthread_mutex_lock(&g_keyring_lock);
+	TAILQ_FOREACH(key, &g_keyring, link) {
+		if (full_dump) {
+			_accel_crypto_key_write_config_json(w, key);
+		} else {
+			_accel_crypto_key_dump_param(w, key);
+		}
+	}
+	pthread_mutex_unlock(&g_keyring_lock);
+}
+
+void
+_accel_crypto_keys_dump_param(struct spdk_json_write_ctx *w)
+{
+	_accel_crypto_keys_write_config_json(w, false);
+}
+
 void
 spdk_accel_write_config_json(struct spdk_json_write_ctx *w)
 {
@@ -707,6 +1056,9 @@ spdk_accel_write_config_json(struct spdk_json_write_ctx *w)
 			accel_write_overridden_opc(w, g_opcode_strings[i], g_modules_opc_override[i]);
 		}
 	}
+
+	_accel_crypto_keys_write_config_json(w, true);
+
 	spdk_json_write_array_end(w);
 }
 
@@ -734,12 +1086,19 @@ spdk_accel_module_finish(void)
 void
 spdk_accel_finish(spdk_accel_fini_cb cb_fn, void *cb_arg)
 {
+	struct spdk_accel_crypto_key *key, *key_tmp;
 	enum accel_opcode op;
 
 	assert(cb_fn != NULL);
 
 	g_fini_cb_fn = cb_fn;
 	g_fini_cb_arg = cb_arg;
+
+	pthread_mutex_lock(&g_keyring_lock);
+	TAILQ_FOREACH_SAFE(key, &g_keyring, link, key_tmp) {
+		accel_crypto_key_destroy_unsafe(key);
+	}
+	pthread_mutex_unlock(&g_keyring_lock);
 
 	for (op = 0; op < ACCEL_OPC_LAST; op++) {
 		if (g_modules_opc_override[op] != NULL) {

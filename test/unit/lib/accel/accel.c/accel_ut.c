@@ -48,6 +48,17 @@ DEFINE_STUB(pmem_is_pmem, int, (const void *addr, size_t len), 0);
 DEFINE_STUB(pmem_memset_persist, void *, (void *pmemdest, int c, size_t len), NULL);
 #endif
 
+#ifdef SPDK_CONFIG_ISAL
+DEFINE_STUB_V(XTS_AES_128_enc, (uint8_t *k2, uint8_t *k1, uint8_t *tweak, uint64_t lba_size,
+				const uint8_t *src, uint8_t *dst));
+DEFINE_STUB_V(XTS_AES_128_dec, (uint8_t *k2, uint8_t *k1, uint8_t *tweak, uint64_t lba_size,
+				const uint8_t *src, uint8_t *dst));
+DEFINE_STUB_V(XTS_AES_256_enc, (uint8_t *k2, uint8_t *k1, uint8_t *tweak, uint64_t lba_size,
+				const uint8_t *src, uint8_t *dst));
+DEFINE_STUB_V(XTS_AES_256_dec, (uint8_t *k2, uint8_t *k1, uint8_t *tweak, uint64_t lba_size,
+				const uint8_t *src, uint8_t *dst));
+#endif
+
 /* global vars and setup/cleanup functions used for all test functions */
 struct spdk_accel_module_if g_module = {};
 struct spdk_io_channel *g_ch = NULL;

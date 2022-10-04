@@ -16,6 +16,8 @@ A new flag `ACCEL_FLAG_PERSISTENT` was added to indicate the target memory is PM
 
 New library isa-l-crypto has been added, it is used by accel library in crypto operations.
 
+New functions `spdk_accel_submit_encrypt` and `spdk_accel_submit_decrypt` were added.
+
 ### scheduler
 
 The API `spdk_accel_get_capabilities` has been removed.
