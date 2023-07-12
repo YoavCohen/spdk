@@ -19,7 +19,6 @@ int g_lvserrno;
 int g_cluster_size;
 int g_registered_bdevs;
 int g_num_lvols = 0;
-int g_lvol_open_enomem = -1;
 struct spdk_lvol_store *g_lvs = NULL;
 struct spdk_lvol *g_lvol = NULL;
 struct lvol_store_bdev *g_lvs_bdev = NULL;
@@ -49,8 +48,8 @@ DEFINE_STUB(spdk_lvol_iter_immediate_clones, int,
 DEFINE_STUB(spdk_lvs_esnap_missing_add, int,
 	    (struct spdk_lvol_store *lvs, struct spdk_lvol *lvol, const void *esnap_id,
 	     uint32_t id_len), -ENOTSUP);
-DEFINE_STUB(spdk_blob_is_healthy, bool, (const struct spdk_blob *blob), true);
 DEFINE_STUB(spdk_blob_get_esnap_bs_dev, struct spdk_bs_dev *, (const struct spdk_blob *blob), NULL);
+DEFINE_STUB(spdk_lvol_is_degraded, bool, (const struct spdk_lvol *lvol), false);
 
 struct spdk_blob {
 	uint64_t	id;
@@ -224,16 +223,7 @@ spdk_lvol_rename(struct spdk_lvol *lvol, const char *new_name,
 void
 spdk_lvol_open(struct spdk_lvol *lvol, spdk_lvol_op_with_handle_complete cb_fn, void *cb_arg)
 {
-	int lvolerrno;
-
-	if (g_lvol_open_enomem == lvol->lvol_store->lvols_opened) {
-		lvolerrno = -ENOMEM;
-		g_lvol_open_enomem = -1;
-	} else {
-		lvolerrno = g_lvolerrno;
-	}
-
-	cb_fn(cb_arg, lvol, lvolerrno);
+	cb_fn(cb_arg, lvol, g_lvolerrno);
 }
 
 uint64_t
@@ -350,12 +340,10 @@ lvs_load(struct spdk_bs_dev *dev, const struct spdk_lvs_opts *lvs_opts,
 	SPDK_CU_ASSERT_FATAL(lvs->blobstore != NULL);
 	TAILQ_INIT(&lvs->lvols);
 	TAILQ_INIT(&lvs->pending_lvols);
-	TAILQ_INIT(&lvs->retry_open_lvols);
 	spdk_uuid_generate(&lvs->uuid);
 	lvs->bs_dev = dev;
 	for (i = 0; i < g_num_lvols; i++) {
 		_lvol_create(lvs);
-		lvs->lvol_count++;
 	}
 
 	cb_fn(cb_arg, lvs, lvserrno);
@@ -1179,7 +1167,6 @@ ut_lvs_examine_check(bool success)
 		SPDK_CU_ASSERT_FATAL(g_lvol_store->blobstore != NULL);
 		CU_ASSERT(g_lvol_store->blobstore->esnap_bs_dev_create != NULL);
 		CU_ASSERT(g_lvol_store->bs_dev != NULL);
-		CU_ASSERT(g_lvol_store->lvols_opened == spdk_min(g_num_lvols, g_registered_bdevs));
 	} else {
 		SPDK_CU_ASSERT_FATAL(TAILQ_EMPTY(&g_spdk_lvol_pairs));
 		g_lvol_store = NULL;
@@ -1225,29 +1212,6 @@ ut_lvol_examine_disk(void)
 	vbdev_lvs_examine_disk(&g_bdev);
 	ut_lvs_examine_check(true);
 	CU_ASSERT(g_registered_bdevs != 0);
-	SPDK_CU_ASSERT_FATAL(!TAILQ_EMPTY(&g_lvol_store->lvols));
-	vbdev_lvs_destruct(g_lvol_store, lvol_store_op_complete, NULL);
-	CU_ASSERT(g_lvserrno == 0);
-
-	/* Examine multiple lvols successfully */
-	g_num_lvols = 4;
-	g_registered_bdevs = 0;
-	lvol_already_opened = false;
-	vbdev_lvs_examine_disk(&g_bdev);
-	ut_lvs_examine_check(true);
-	CU_ASSERT(g_registered_bdevs == g_num_lvols);
-	SPDK_CU_ASSERT_FATAL(!TAILQ_EMPTY(&g_lvol_store->lvols));
-	vbdev_lvs_destruct(g_lvol_store, lvol_store_op_complete, NULL);
-	CU_ASSERT(g_lvserrno == 0);
-
-	/* Examine multiple lvols successfully - fail one with -ENOMEM on lvol open */
-	g_num_lvols = 4;
-	g_lvol_open_enomem = 2;
-	g_registered_bdevs = 0;
-	lvol_already_opened = false;
-	vbdev_lvs_examine_disk(&g_bdev);
-	ut_lvs_examine_check(true);
-	CU_ASSERT(g_registered_bdevs == g_num_lvols);
 	SPDK_CU_ASSERT_FATAL(!TAILQ_EMPTY(&g_lvol_store->lvols));
 	vbdev_lvs_destruct(g_lvol_store, lvol_store_op_complete, NULL);
 	CU_ASSERT(g_lvserrno == 0);
@@ -1836,7 +1800,7 @@ ut_esnap_dev_create(void)
 
 	/* Bdev not found */
 	g_base_bdev = NULL;
-	MOCK_SET(spdk_blob_is_healthy, false);
+	MOCK_SET(spdk_lvol_is_degraded, true);
 	rc = vbdev_lvol_esnap_dev_create(&lvs, &lvol, &blob, uuid_str, sizeof(uuid_str), &bs_dev);
 	CU_ASSERT(rc == 0);
 	SPDK_CU_ASSERT_FATAL(bs_dev != NULL);
@@ -1847,7 +1811,7 @@ ut_esnap_dev_create(void)
 	/* TODO: This suggests we need a way to wait for a claim to be available. */
 	g_base_bdev = &bdev;
 	lvol_already_opened = true;
-	MOCK_SET(spdk_blob_is_healthy, false);
+	MOCK_SET(spdk_lvol_is_degraded, true);
 	rc = vbdev_lvol_esnap_dev_create(&lvs, &lvol, &blob, uuid_str, sizeof(uuid_str), &bs_dev);
 	CU_ASSERT(rc == 0);
 	SPDK_CU_ASSERT_FATAL(bs_dev != NULL);
@@ -1856,7 +1820,7 @@ ut_esnap_dev_create(void)
 
 	/* Happy path */
 	lvol_already_opened = false;
-	MOCK_SET(spdk_blob_is_healthy, true);
+	MOCK_SET(spdk_lvol_is_degraded, false);
 	rc = vbdev_lvol_esnap_dev_create(&lvs, &lvol, &blob, uuid_str, sizeof(uuid_str), &bs_dev);
 	CU_ASSERT(rc == 0);
 	SPDK_CU_ASSERT_FATAL(bs_dev != NULL);
@@ -1866,7 +1830,7 @@ ut_esnap_dev_create(void)
 	g_base_bdev = NULL;
 	lvol_already_opened = false;
 	free(unterminated);
-	MOCK_CLEAR(spdk_blob_is_healthy);
+	MOCK_CLEAR(spdk_lvol_is_degraded);
 }
 
 static void

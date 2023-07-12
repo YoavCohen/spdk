@@ -11,8 +11,7 @@ multiple readers.
 
 ### gpt
 
-GPT bdevs now use the GPT Unique Partition ID as the bdev's UUID. Do not rely on the newly
-introduced spdk_bdev_part_construct_uuid(). A more flexible replacement will come later.
+GPT bdevs now use the GPT Unique Partition ID as the bdev's UUID.
 
 ### lvol
 
@@ -25,6 +24,10 @@ New `bdev_lvol_get_lvols` RPC to list logical volumes. This provides information
 volumes without providing information about the bdevs. It is useful for listing the lvols
 associated with specific lvol stores and for listing lvols that are not healthy and have no
 associated bdev.
+
+### part
+
+New API `spdk_bdev_part_construct_ext` is added and allows the bdev's UUID to be specified.
 
 ## v23.01
 

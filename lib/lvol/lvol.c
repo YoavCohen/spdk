@@ -1237,6 +1237,7 @@ spdk_lvol_create_esnap_clone(const void *esnap_id, uint32_t id_len, uint64_t siz
 	struct spdk_blob_store *bs;
 	struct spdk_lvol *lvol;
 	struct spdk_blob_opts opts;
+	uint64_t cluster_sz;
 	char *xattr_names[] = {LVOL_NAME, "uuid"};
 	int rc;
 
@@ -1251,6 +1252,14 @@ spdk_lvol_create_esnap_clone(const void *esnap_id, uint32_t id_len, uint64_t siz
 	}
 
 	bs = lvs->blobstore;
+
+	cluster_sz = spdk_bs_get_cluster_size(bs);
+	if ((size_bytes % cluster_sz) != 0) {
+		SPDK_ERRLOG("Cannot create '%s/%s': size %" PRIu64 " is not an integer multiple of "
+			    "cluster size %" PRIu64 "\n", lvs->name, clone_name, size_bytes,
+			    cluster_sz);
+		return -EINVAL;
+	}
 
 	req = calloc(1, sizeof(*req));
 	if (!req) {
@@ -1272,7 +1281,7 @@ spdk_lvol_create_esnap_clone(const void *esnap_id, uint32_t id_len, uint64_t siz
 	opts.esnap_id = esnap_id;
 	opts.esnap_id_len = id_len;
 	opts.thin_provision = true;
-	opts.num_clusters = spdk_divide_round_up(size_bytes, spdk_bs_get_cluster_size(bs));
+	opts.num_clusters = spdk_divide_round_up(size_bytes, cluster_sz);
 	opts.clear_method = lvol->clear_method;
 	opts.xattrs.count = SPDK_COUNTOF(xattr_names);
 	opts.xattrs.names = xattr_names;
@@ -2162,4 +2171,15 @@ spdk_lvol_get_by_names(const char *lvs_name, const char *lvol_name)
 
 	pthread_mutex_unlock(&g_lvol_stores_mutex);
 	return NULL;
+}
+
+bool
+spdk_lvol_is_degraded(const struct spdk_lvol *lvol)
+{
+	struct spdk_blob *blob = lvol->blob;
+
+	if (blob == NULL) {
+		return true;
+	}
+	return !spdk_blob_is_healthy(blob);
 }

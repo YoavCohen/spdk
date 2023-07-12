@@ -224,11 +224,15 @@ void spdk_lvol_create_clone(struct spdk_lvol *lvol, const char *clone_name,
  *
  * \param esnap_id The identifier that will be passed to the spdk_bs_esnap_dev_create callback.
  * \param id_len The length of esnap_id, in bytes.
- * \param size_bytes The size of the external snapshot device, in bytes.
+ * \param size_bytes The size of the external snapshot device, in bytes. This must be an integer
+ * multiple of the lvolstore's cluster size. See \c cluster_sz in \struct spdk_lvs_opts.
  * \param lvs Handle to lvolstore.
  * \param clone_name Name of created clone.
  * \param cb_fn Completion callback.
  * \param cb_arg Completion callback custom arguments.
+ * \return 0 if parameters pass verification checks and the esnap creation is started, in which case
+ * the \c cb_fn will be used to report the completion status. If an error is encountered, a negative
+ * errno will be rurned and \c cb_fn will not be called.
  */
 int spdk_lvol_create_esnap_clone(const void *esnap_id, uint32_t id_len, uint64_t size_bytes,
 				 struct spdk_lvol_store *lvs, const char *clone_name,
@@ -368,6 +372,14 @@ void spdk_lvol_inflate(struct spdk_lvol *lvol, spdk_lvol_op_complete cb_fn, void
  * \param cb_arg Completion callback custom arguments
  */
 void spdk_lvol_decouple_parent(struct spdk_lvol *lvol, spdk_lvol_op_complete cb_fn, void *cb_arg);
+
+/**
+ * Determine if an lvol is degraded. A degraded lvol cannot perform IO.
+ *
+ * \param lvol Handle to lvol
+ * \return true if the lvol has no open blob or the lvol's blob is degraded, else false.
+ */
+bool spdk_lvol_is_degraded(const struct spdk_lvol *lvol);
 
 #ifdef __cplusplus
 }
