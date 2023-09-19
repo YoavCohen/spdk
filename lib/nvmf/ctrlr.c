@@ -612,7 +612,7 @@ nvmf_ctrlr_add_io_qpair(void *ctx)
 		/* There is a chance that admin qpair is being destroyed at this moment due to e.g.
 		 * expired keep alive timer. Part of the qpair destruction process is change of qpair's
 		 * state to DEACTIVATING and removing it from poll group */
-		SPDK_ERRLOG("Inactive admin qpair (state %d, group %p)\n", admin_qpair->state, admin_qpair->group);
+		SPDK_ERRLOG("Inactive admin qpair (addr %p, state %d, group %p)\n", admin_qpair, admin_qpair ? (int)admin_qpair->state : -1, admin_qpair ? admin_qpair->group : NULL);
 		SPDK_NVMF_INVALID_CONNECT_CMD(rsp, qid);
 		goto end;
 	}
@@ -691,11 +691,11 @@ _nvmf_ctrlr_add_io_qpair(void *ctx)
 	}
 
 	admin_qpair = ctrlr->admin_qpair;
-	if (admin_qpair->state != SPDK_NVMF_QPAIR_ACTIVE || admin_qpair->group == NULL) {
+	if (admin_qpair == NULL || admin_qpair->state != SPDK_NVMF_QPAIR_ACTIVE || admin_qpair->group == NULL) {
 		/* There is a chance that admin qpair is being destroyed at this moment due to e.g.
 		 * expired keep alive timer. Part of the qpair destruction process is change of qpair's
 		 * state to DEACTIVATING and removing it from poll group */
-		SPDK_ERRLOG("Inactive admin qpair (state %d, group %p)\n", admin_qpair->state, admin_qpair->group);
+		SPDK_ERRLOG("Inactive admin qpair (state %d, group %p)\n", admin_qpair ? admin_qpair->state : -1, admin_qpair ? admin_qpair->group : NULL);
 		SPDK_NVMF_INVALID_CONNECT_CMD(rsp, qid);
 		spdk_nvmf_request_complete(req);
 		return;
@@ -1091,10 +1091,14 @@ static int
 nvmf_ctrlr_cc_timeout(void *ctx)
 {
 	struct spdk_nvmf_ctrlr *ctrlr = ctx;
-	struct spdk_nvmf_poll_group *group = ctrlr->admin_qpair->group;
+	struct spdk_nvmf_poll_group *group;
 	struct spdk_nvmf_ns *ns;
 	struct spdk_nvmf_subsystem_pg_ns_info *ns_info;
 
+	if (ctrlr->admin_qpair == NULL) {
+	    return SPDK_POLLER_BUSY;
+	}
+	group = ctrlr->admin_qpair->group;
 	assert(group != NULL && group->sgroups != NULL);
 	spdk_poller_unregister(&ctrlr->cc_timeout_timer);
 	SPDK_DEBUGLOG(nvmf, "Ctrlr %p reset or shutdown timeout\n", ctrlr);
