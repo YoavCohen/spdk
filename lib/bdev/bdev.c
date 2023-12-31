@@ -3346,6 +3346,7 @@ bdev_channel_destroy_resource(struct spdk_bdev_channel *ch)
 	assert(TAILQ_EMPTY(&ch->io_memory_domain));
 	assert(ch->io_outstanding == 0);
 	assert(shared_resource->ref > 0);
+	fprintf(stderr, "Remvoing shared resource %p from bdev %s ref=%u\n", shared_resource, ch->bdev->name, shared_resource->ref);
 	shared_resource->ref--;
 	if (shared_resource->ref == 0) {
 		assert(shared_resource->io_outstanding == 0);
@@ -3605,6 +3606,7 @@ bdev_channel_create(void *io_device, void *ctx_buf)
 			spdk_put_io_channel(mgmt_io_ch);
 			return -1;
 		}
+		fprintf(stderr, "Created shared resource with p=%p for bdev_name=%s mgmt_ch=%p", shared_resource, bdev->name, mgmt_io_ch);
 
 		shared_resource->mgmt_ch = mgmt_ch;
 		shared_resource->io_outstanding = 0;
